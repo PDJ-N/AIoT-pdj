@@ -1,21 +1,54 @@
-from gpigzero import DigitalINputDevice
+# gpiozero 라이브러리에서 디지털 입력 장치를 사용하기 위한 클래스를 불러온다.
+# 가스 센서와 같이 HIGH/LOW 형태의 신호를 읽을 때 사용한다.
+from gpiozero import DigitalInputDevice
+
+# gpiozero 라이브러리에서 출력 장치를 제어하기 위한 클래스를 불러온다.
+# 부저와 같이 켜기/끄기 제어가 필요한 장치에 사용한다.
 from gpiozero import OutputDevice
+
+# 반복 측정 사이에 짧은 대기 시간을 주기 위해 time 모듈을 불러온다.
 import time
-bz = OutputDevice (18)
-gas=DigitalINputDevice (17)
+
+# GPIO 18번 핀에 연결된 부저를 출력 장치로 설정한다.
+bz = OutputDevice(18)
+
+# GPIO 17번 핀에 연결된 가스 센서를 디지털 입력 장치로 설정한다.
+gas = DigitalInputDevice(17)
 
 try:
+    # 프로그램이 종료될 때까지 계속해서 센서 값을 확인한다.
     while True:
+        # 가스 센서 값이 0이면 가스가 감지된 상태로 판단한다.
         if gas.value == 0:
+            # 가스가 감지되면 부저를 켠다.
             bz.on()
+
+            # 현재 상태를 터미널에 출력한다.
             print("Gas Detected")
         else:
-            
+            # 가스가 감지되지 않으면 현재 상태를 출력한다.
             print("No Gas Detected")
+
+            # 가스가 없을 때는 부저를 끈다.
             bz.off()
 
+        # 너무 빠르게 반복하지 않도록 0.2초 대기한다.
         time.sleep(0.2)
 
+# 사용자가 Ctrl+C를 눌러 프로그램을 강제 종료할 경우 예외를 처리한다.
 except KeyboardInterrupt:
     pass
+
+# 프로그램이 끝날 때 부저가 켜진 상태로 남지 않도록 반드시 끈다.
 bz.off()
+
+
+
+# ### 학습 내용
+# MQ-2 센서는 가연성 가스나 연기 농도 변화에 따라 센서 내부의 전도도가 달라지는 특성을 이용하여 가스를 감지한다. FC-22 모듈은 이러한 센서 반응을 바탕으로 디지털 출력 신호를 제공하므로, 라즈베리파이에서 감지 여부를 비교적 간단하게 읽을 수 있다.  
+# 능동부저는 내부 발진 회로가 포함되어 있어 전압이 인가되면 별도의 주파수 생성 없이 소리를 낼 수 있으므로, GPIO의 ON/OFF 제어만으로 경보음을 출력할 수 있다.  
+# 이번 실험을 통해 디지털 센서 입력을 읽고, 그 결과에 따라 출력 장치를 즉시 제어하는 기본적인 AIoT 시스템 구조를 이해할 수 있었다.
+
+# ### 실행 결과
+# 가스 센서의 디지털 출력값이 감지 상태일 때 부저가 켜지고 `"Gas Detected"`가 출력되도록 구현하였다. 반대로 가스가 감지되지 않는 상태에서는 부저가 꺼지고 `"No Gas Detected"`가 출력되도록 구성하였다.  
+# 이를 통해 센서 상태 변화에 따라 경보 장치가 연동되는 기본 동작을 확인할 수 있었다.
