@@ -1,23 +1,19 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LED 제어 패널</title>
+    <title>LED Control</title>
     <style>
       :root {
-        color-scheme: light;
-        --bg-top: #f4efe6;
-        --bg-bottom: #dce8e0;
-        --panel: rgba(255, 255, 255, 0.84);
-        --panel-border: rgba(34, 52, 44, 0.12);
-        --text-main: #1b2822;
-        --text-muted: #5f7068;
-        --accent: #1f7a53;
-        --accent-soft: #d7f1e5;
-        --danger: #c64f37;
-        --danger-soft: #fae1dc;
-        --shadow: 0 18px 44px rgba(34, 52, 44, 0.14);
+        --bg-top: #f3efe7;
+        --bg-bottom: #d9e5df;
+        --panel: rgba(255, 255, 255, 0.88);
+        --shadow: 0 24px 50px rgba(30, 48, 40, 0.16);
+        --on-start: #18734b;
+        --on-end: #2db879;
+        --off-start: #b5442c;
+        --off-end: #e46749;
       }
 
       * {
@@ -27,255 +23,68 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
-        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        font-family: "Segoe UI", Tahoma, sans-serif;
         background:
-          radial-gradient(circle at top left, rgba(255, 255, 255, 0.8), transparent 34%),
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.84), transparent 34%),
           linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
       }
 
-      .page {
-        width: min(100%, 980px);
-        margin: 0 auto;
-        padding: 32px 20px 40px;
-      }
-
-      .hero {
-        margin-bottom: 22px;
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        margin: 0 0 12px;
-        padding: 8px 14px;
-        border-radius: 999px;
-        background: rgba(27, 40, 34, 0.08);
-        color: var(--text-muted);
-        font-size: 0.9rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(2.2rem, 6vw, 4.2rem);
-        line-height: 0.95;
-      }
-
-      .description {
-        max-width: 640px;
-        margin: 14px 0 0;
-        color: var(--text-muted);
-        font-size: 1.04rem;
-        line-height: 1.6;
-      }
-
-      .dashboard {
-        display: grid;
-        grid-template-columns: 1.2fr 0.9fr;
-        gap: 18px;
-      }
-
       .panel {
-        position: relative;
-        overflow: hidden;
+        width: min(100%, 420px);
         padding: 24px;
-        border: 1px solid var(--panel-border);
         border-radius: 28px;
         background: var(--panel);
         box-shadow: var(--shadow);
-        backdrop-filter: blur(18px);
       }
 
-      .panel::before {
-        content: "";
-        position: absolute;
-        inset: auto -40px -40px auto;
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        background: rgba(31, 122, 83, 0.08);
-      }
-
-      .status-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 20px;
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 14px;
-        border-radius: 999px;
-        font-size: 0.92rem;
-        font-weight: 600;
-      }
-
-      .badge.ready {
-        background: var(--accent-soft);
-        color: var(--accent);
-      }
-
-      .badge.preview {
-        background: #fff1c9;
-        color: #7f5d00;
-      }
-
-      .badge.pin {
-        background: rgba(27, 40, 34, 0.08);
-        color: var(--text-main);
-      }
-
-      .status-label {
-        margin: 0;
-        color: var(--text-muted);
-        font-size: 0.95rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .status-value {
-        display: inline-flex;
-        margin-top: 10px;
-        padding: 14px 20px;
-        border-radius: 20px;
-        font-size: clamp(2rem, 5vw, 3rem);
-        font-weight: 700;
-      }
-
-      .status-value.on {
-        background: var(--accent-soft);
-        color: var(--accent);
-      }
-
-      .status-value.off {
-        background: var(--danger-soft);
-        color: var(--danger);
-      }
-
-      .status-copy {
-        max-width: 30rem;
-        margin: 16px 0 0;
-        color: var(--text-muted);
-        line-height: 1.6;
-      }
-
-      .control-copy {
-        margin: 0 0 18px;
-        color: var(--text-muted);
-        line-height: 1.6;
-      }
-
-      .control-form {
+      .controls {
         display: grid;
-        gap: 14px;
+        gap: 16px;
       }
 
-      .btn {
+      .button {
         border: 0;
-        border-radius: 20px;
-        padding: 18px 20px;
+        border-radius: 22px;
+        padding: 22px 20px;
+        color: #fff;
         font: inherit;
-        font-size: 1.05rem;
+        font-size: 1.2rem;
         font-weight: 700;
+        letter-spacing: 0.04em;
         cursor: pointer;
-        transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
       }
 
-      .btn:hover {
+      .button:hover {
         transform: translateY(-2px);
       }
 
-      .btn:active {
+      .button:active {
         transform: translateY(0);
       }
 
-      .btn-on {
-        color: #fff;
-        background: linear-gradient(135deg, #1f7a53, #2aa770);
-        box-shadow: 0 14px 28px rgba(31, 122, 83, 0.26);
+      .button-on {
+        background: linear-gradient(135deg, var(--on-start), var(--on-end));
+        box-shadow: 0 14px 28px rgba(24, 115, 75, 0.28);
       }
 
-      .btn-off {
-        color: #fff;
-        background: linear-gradient(135deg, #b4472e, #da6247);
-        box-shadow: 0 14px 28px rgba(180, 71, 46, 0.26);
-      }
-
-      .footnote {
-        margin: 22px 0 0;
-        color: var(--text-muted);
-        font-size: 0.92rem;
-      }
-
-      @media (max-width: 780px) {
-        .page {
-          padding: 24px 16px 32px;
-        }
-
-        .dashboard {
-          grid-template-columns: 1fr;
-        }
-
-        .panel {
-          padding: 20px;
-          border-radius: 24px;
-        }
+      .button-off {
+        background: linear-gradient(135deg, var(--off-start), var(--off-end));
+        box-shadow: 0 14px 28px rgba(181, 68, 44, 0.28);
       }
     </style>
   </head>
-
   <body>
-    <main class="page">
-      <section class="hero">
-        <p class="eyebrow">Raspberry Pi LED Dashboard</p>
-        <h1>LED 원격 제어</h1>
-        <p class="description">
-          라즈베리파이 GPIO에 연결된 LED를 브라우저에서 간단하게 켜고 끌 수 있는
-          제어 화면입니다. 무거운 효과는 줄이고, 버튼은 크게 배치해서 작은 화면에서도
-          보기 쉽도록 구성했습니다.
-        </p>
-      </section>
-
-      <section class="dashboard">
-        <article class="panel">
-          <div class="status-row">
-            <span class="badge ready">Ready</span>
-            <span class="badge pin">GPIO 21</span>
-          </div>
-
-          <p class="status-label">Current LED State</p>
-          <strong class="status-value on">CONTROL</strong>
-          <p class="status-copy">
-            아래 버튼을 누르면 `name="led"` 값이 서버로 전달됩니다. `main20-1.py`
-            에서 이 값을 받아 LED ON/OFF 로직과 연결하면 됩니다.
-          </p>
-        </article>
-
-        <article class="panel">
-          <p class="control-copy">
-            터치 화면이나 모바일 브라우저에서도 누르기 쉽도록 버튼 크기를 크게
-            잡았습니다.
-          </p>
-
-          <form action="/data" method="post" class="control-form">
-            <button type="submit" class="btn btn-on" name="led" value="on">
-              LED 켜기
-            </button>
-            <button type="submit" class="btn btn-off" name="led" value="off">
-              LED 끄기
-            </button>
-          </form>
-
-          <p class="footnote">
-            폼 전송 경로는 `/data`로 유지해 두었습니다. `main20-1.py` 라우트에 맞게
-            필요하면 `action`만 바꾸면 됩니다.
-          </p>
-        </article>
-      </section>
-    </main>
+    <form action="/data" method="post" class="panel controls">
+      <button type="submit" class="button button-on" name="led" value="on">
+        ON
+      </button>
+      <button type="submit" class="button button-off" name="led" value="off">
+        OFF
+      </button>
+    </form>
   </body>
 </html>
