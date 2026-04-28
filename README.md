@@ -10,6 +10,7 @@
 - [project6 - MQ-2 가스 감지 모듈과 능동부저를 이용한 가스 경보 시스템](#project6---mq-2-가스-감지-모듈과-능동부저를-이용한-가스-경보-시스템)
 - [project14 - PIR 모션 센서와 카메라를 이용한 움직임 감지 촬영 시스템](#project14---pir-모션-센서와-카메라를-이용한-움직임-감지-촬영-시스템)
 - [project20 - 플라스크 웹서버를 이용한 LED 제어](#project20---플라스크-웹서버를-이용한-led-제어)
+- [project24 - API Key 발급받아 온습도 표시 GUI 프로그램 만들기](#project24---api-key-발급받아-온습도-표시-gui-프로그램-만들기)
 
 ---
 
@@ -253,3 +254,95 @@ Flask는 `@app.route()`를 사용하여 특정 URL 요청에 맞는 함수를 �
 ### 실행 결과
 라즈베리파이에서 Flask 서버를 실행한 뒤, 웹 브라우저에서 해당 IP 주소로 접속하여 LED를 켜고 끌 수 있도록 구현하였다.  
 특히 `index.html`의 `[on]`, `[off]` 버튼을 이용하여 보다 직관적으로 LED를 제어할 수 있음을 확인하였다.
+
+---
+
+## project24 - API Key 발급받아 온습도 표시 GUI 프로그램 만들기
+
+### 실험 개요
+OpenWeatherMap에서 발급받은 API Key를 이용하여 서울의 현재 날씨 데이터를 가져오고, Python의 `tkinter`를 활용하여 온도와 습도를 GUI 창에 표시하는 프로그램을 구현하였다.  
+OpenWeatherMap API는 현재 날씨 데이터를 JSON 형식으로 제공하며, 프로그램에서는 API 응답 데이터 중 `main.temp`와 `main.humidity` 값을 추출하여 화면에 출력하였다.  
+해당 내용은 `project_24` 폴더의 `main24-3.py` 파일 기준으로 정리하였다.
+
+### 실험 목적
+- OpenWeatherMap 회원가입 및 API Key 발급 과정을 이해한다.
+- API Key가 API 요청에서 인증 문자열로 사용되는 방식을 학습한다.
+- Python으로 웹 API에 요청을 보내고 JSON 데이터를 처리하는 방법을 익힌다.
+- `tkinter`를 이용하여 온도와 습도를 표시하는 간단한 GUI 프로그램을 구현한다.
+- `window.after()`를 사용하여 일정 시간마다 데이터를 갱신하는 방법을 학습한다.
+
+### 사용 부품 및 환경
+- Raspberry Pi 또는 Python 실행 환경
+- 인터넷 연결 환경
+- OpenWeatherMap 계정
+- OpenWeatherMap API Key
+
+### 사용 기술
+- Python
+- `urllib.request`
+- `json`
+- `tkinter`
+- OpenWeatherMap API
+- JSON 데이터 처리
+- GUI 프로그래밍
+
+### 주요 코드
+```python
+import urllib.request, json, tkinter, tkinter.font
+
+# OpenWeatherMap에서 발급받은 API 키를 입력하는 부분
+# 실제 사용 시에는 본인의 API 키를 넣어야 한다.
+API_KEY = "Enter your API key here"
+
+# 1분마다 날씨 정보를 가져와 화면에 표시하는 함수
+def tick1Min():
+    # OpenWeatherMap API 요청 주소를 만든다.
+    # q=Seoul은 서울의 날씨를 의미하고, units=metric은 섭씨 온도를 사용한다.
+    url = f"https://api.openweathermap.org/data/2.5/weather?q=Seoul&appid={API_KEY}&units=metric"
+
+    # API 주소에 접속하여 날씨 데이터를 요청한다.
+    with urllib.request.urlopen(url) as r:
+        # 응답으로 받은 JSON 데이터를 Python 딕셔너리 형태로 변환한다.
+        data = json.loads(r.read())
+
+    # JSON 데이터에서 현재 온도와 습도 값을 가져온다.
+    temp = data["main"]["temp"]
+    humi = data["main"]["humidity"]
+
+    # 가져온 온도와 습도 정보를 라벨에 출력한다.
+    label.config(text=f"{temp:.1f}C   {humi}%")
+
+    # 60000ms, 즉 1분 후에 tick1Min 함수를 다시 실행한다.
+    window.after(60000, tick1Min)
+
+# tkinter 윈도우를 생성한다.
+window = tkinter.Tk()
+window.title("TEMP HUMI DISPLAY")
+window.geometry("400x100")
+window.resizable(False, False)
+
+# 화면에 표시할 글자 크기를 설정한다.
+font = tkinter.font.Font(size=30)
+
+# 온도와 습도를 출력할 라벨을 생성한다.
+label = tkinter.Label(window, text="", font=font)
+label.pack()
+
+# 프로그램 시작 시 처음 한 번 날씨 정보를 가져온다.
+tick1Min()
+
+# tkinter 이벤트 루프를 실행하여 창이 계속 유지되도록 한다.
+window.mainloop()
+```
+
+### 학습 내용
+OpenWeatherMap API를 사용하기 위해서는 먼저 웹사이트에 회원가입한 뒤 API Key를 발급받아야 한다. API Key는 API 서버가 요청 사용자를 확인하기 위한 인증 문자열로 사용되며, 요청 URL에 포함되어 서버에서 유효성을 검증한다.  
+이번 실험에서는 `urllib.request.urlopen()`을 사용하여 OpenWeatherMap API 주소에 요청을 보냈고, 응답으로 받은 JSON 데이터를 `json.loads()`를 통해 Python 딕셔너리 형태로 변환하였다. 이후 `data["main"]["temp"]`와 `data["main"]["humidity"]`를 사용하여 현재 온도와 습도 값을 추출하였다.  
+또한 `tkinter`의 `Tk()`, `Label`, `Font`를 이용하여 GUI 창을 만들고, `label.config()`로 화면에 표시되는 값을 갱신하였다. `window.after(60000, tick1Min)`을 사용하여 1분마다 같은 함수를 다시 실행하도록 구성하면서, GUI 프로그램에서 주기적으로 데이터를 업데이트하는 방식도 학습하였다.  
+API Key는 발급 직후 바로 동작하지 않을 수 있으며, 서버에서 활성화되는 데 시간이 필요할 수 있다. 따라서 실행했을 때 온도와 습도가 바로 표시되지 않으면 일정 시간이 지난 뒤 다시 실행하여 확인해야 한다. 또한 API Key는 개인 인증 정보이므로 GitHub나 보고서 캡처에 그대로 노출하지 않도록 주의해야 한다.
+
+### 실행 결과
+발급받은 API Key를 코드의 `API_KEY` 변수에 입력한 뒤 프로그램을 실행하면 `TEMP HUMI DISPLAY`라는 제목의 GUI 창이 나타나고, 서울의 현재 온도와 습도가 표시된다.  
+실습에서는 OpenWeatherMap 웹사이트에서 Seoul을 검색하여 표시된 온습도와 GUI 프로그램의 결과를 비교하였고, OpenWeatherMap에서 제공하는 값과 프로그램에 표시된 값이 일치함을 확인하였다.  
+이를 통해 외부 웹 API 호출, JSON 데이터 처리, GUI 출력, 주기적 갱신을 하나의 프로그램으로 연결하는 기본적인 API 기반 AIoT 응용 구조를 이해할 수 있었다.
+
