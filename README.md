@@ -11,6 +11,7 @@
 - [project14 - PIR 모션 센서와 카메라를 이용한 움직임 감지 촬영 시스템](#project14---pir-모션-센서와-카메라를-이용한-움직임-감지-촬영-시스템)
 - [project20 - 플라스크 웹서버를 이용한 LED 제어](#project20---플라스크-웹서버를-이용한-led-제어)
 - [project24 - API Key 발급받아 온습도 표시 GUI 프로그램 만들기](#project24---api-key-발급받아-온습도-표시-gui-프로그램-만들기)
+- [project28 - 텔레그램으로 일기예보를 알려주는 알리미 만들기](#project28---텔레그램으로-일기예보를-알려주는-알리미-만들기)
 
 ---
 
@@ -346,3 +347,108 @@ API Key는 발급 직후 바로 동작하지 않을 수 있으며, 서버에서 
 실습에서는 OpenWeatherMap 웹사이트에서 Seoul을 검색하여 표시된 온습도와 GUI 프로그램의 결과를 비교하였고, OpenWeatherMap에서 제공하는 값과 프로그램에 표시된 값이 일치함을 확인하였다.  
 이를 통해 외부 웹 API 호출, JSON 데이터 처리, GUI 출력, 주기적 갱신을 하나의 프로그램으로 연결하는 기본적인 API 기반 AIoT 응용 구조를 이해할 수 있었다.
 
+---
+
+## project28 - 텔레그램으로 일기예보를 알려주는 알리미 만들기
+
+### 실험 개요
+OpenWeatherMap API에서 서울의 3시간 간격 일기예보 데이터를 가져오고, 이를 보기 좋은 문자열로 가공한 뒤 텔레그램 봇을 통해 자동 전송하는 알리미 프로그램을 구현하였다.  
+이전 실습에서 발급받은 OpenWeatherMap API Key를 활용하였으며, 텔레그램 BotFather에서 발급받은 봇 토큰과 chat_id를 사용하여 개인 텔레그램 계정으로 메시지를 전송하였다.  
+해당 내용은 `project_28` 폴더의 `main28.py`, `main28-1.py`, `main28-2.py` 파일 기준으로 정리하였다.
+
+### 실험 목적
+- OpenWeatherMap의 예보 API를 호출하여 3시간 단위 날씨 데이터를 가져오는 방법을 학습한다.
+- JSON 응답에서 시간, 기온, 습도, 날씨 설명 값을 추출하는 방법을 이해한다.
+- 추출한 데이터를 `(07h 15.2C 60% clear sky)`와 같은 메시지 형식으로 가공한다.
+- 텔레그램 봇 토큰과 chat_id를 이용하여 Python에서 메시지를 전송한다.
+- `datetime`과 `asyncio`를 활용하여 정해진 시간에 알림을 보내는 자동화 흐름을 구현한다.
+
+### 사용 부품 및 환경
+- Raspberry Pi 또는 Python 실행 환경
+- 인터넷 연결 환경
+- OpenWeatherMap 계정 및 API Key
+- Telegram 계정
+- Telegram BotFather로 생성한 봇 토큰
+- 메시지를 받을 Telegram chat_id
+
+### 사용 기술
+- Python
+- `urllib.request`
+- `json`
+- `datetime`
+- `asyncio`
+- `python-telegram-bot`
+- OpenWeatherMap Forecast API
+- Telegram Bot API
+
+### 파일별 역할
+- `main28.py`: 서울 예보 API를 호출하여 시간, 기온, 습도, 날씨 설명 데이터를 리스트로 확인한다.
+- `main28-1.py`: 예보 데이터를 사람이 읽기 쉬운 문자열 형태로 가공하여 출력한다.
+- `main28-2.py`: 가공된 날씨 메시지를 정해진 시간마다 텔레그램으로 자동 전송한다.
+
+### 주요 코드
+```python
+import urllib.request
+import json
+import datetime
+import asyncio
+from telegram import Bot
+
+telegram_id = 'Enter your chat ID here'
+my_token = 'Enter your bot token here'
+api_key = 'Enter your API key here'
+
+bot = Bot(token=my_token)
+
+ALERT_HOURS = [7, 10, 13, 16, 19, 22]
+ALERT_TIMES = ["08:30", "15:20"]
+
+def getWeather():
+    url = f"https://api.openweathermap.org/data/2.5/forecast?q=Seoul&appid={api_key}&units=metric&lang=en&cnt=8"
+
+    with urllib.request.urlopen(url) as r:
+        data = json.loads(r.read())
+
+    text = ""
+    for i in range(8):
+        item = data['list'][i]
+        hour = str((int(item['dt_txt'][11:13]) + 9) % 24).zfill(2)
+        temp = item['main']['temp']
+        humi = item['main']['humidity']
+        desc = item['weather'][0]['description']
+        text += f"({hour}h {temp}C {humi}% {desc})\n"
+
+    return text
+
+async def main():
+    try:
+        while True:
+            now = datetime.datetime.now()
+            hm = now.strftime('%H:%M')
+
+            is_alert_hour = now.hour in ALERT_HOURS and now.minute == 0 and now.second == 0
+            is_alert_time = hm in ALERT_TIMES and now.second == 0
+
+            if is_alert_hour or is_alert_time:
+                msg = getWeather()
+                print(msg)
+                await bot.send_message(chat_id=telegram_id, text=msg)
+
+            await asyncio.sleep(1)
+
+    except KeyboardInterrupt:
+        pass
+
+asyncio.run(main())
+```
+
+### 학습 내용
+먼저 `main28.py`에서는 OpenWeatherMap Forecast API 주소를 만들고 `urllib.request.urlopen()`으로 요청을 보냈다. API 응답은 JSON 형식이므로 `json.loads()`를 사용하여 Python에서 다룰 수 있는 자료형으로 변환하였다. 이후 `data['list']`에 들어 있는 예보 목록에서 시간, 기온, 습도, 날씨 설명을 각각 추출하였다.  
+`main28-1.py`에서는 추출한 데이터를 단순 리스트 출력이 아니라 텔레그램 메시지로 보내기 좋은 문자열 형태로 가공하였다. `cnt=8`은 3시간 간격 예보 8개를 의미하므로 약 하루치 예보를 확인할 수 있으며, 각 항목은 `(시간h 기온C 습도% 날씨설명)` 형식으로 정리하였다.  
+최종 단계인 `main28-2.py`에서는 `Bot(token=my_token)`으로 텔레그램 봇 객체를 만들고, 조건에 맞는 시간이 되었을 때 `bot.send_message()`로 날씨 메시지를 전송하도록 구성하였다. `ALERT_HOURS`는 오전 7시부터 3시간 간격의 정각 알림을 담당하고, `ALERT_TIMES`는 실습 확인을 위해 원하는 시각을 직접 추가할 수 있는 부분이다.  
+또한 `while True` 반복문 안에서 현재 시간을 1초마다 확인하고, `now.second == 0` 조건을 함께 사용하여 같은 분 안에서 메시지가 여러 번 전송되는 것을 줄였다. `asyncio.sleep(1)`을 사용하여 비동기 방식으로 대기하면서 텔레그램 메시지 전송 함수도 `await`로 실행하였다.
+
+### 실행 결과
+API Key, 텔레그램 봇 토큰, chat_id를 코드에 입력한 뒤 프로그램을 실행하면 지정된 시간에 서울의 일기예보 메시지가 터미널에 출력되고 텔레그램으로도 전송된다.  
+실습에서는 현재 시간의 1분 뒤를 `ALERT_TIMES`에 추가하여 테스트하였고, 해당 시간이 되었을 때 터미널에 날씨 메시지 로그가 나타나며 텔레그램에서도 동일한 메시지를 정상적으로 수신하는 것을 확인하였다.  
+이를 통해 외부 날씨 API 호출, JSON 데이터 처리, 메시지 문자열 가공, 텔레그램 봇 전송, 시간 조건 기반 자동화를 연결한 AIoT 알림 시스템의 기본 구조를 이해할 수 있었다.
