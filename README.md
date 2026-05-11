@@ -12,6 +12,7 @@
 - [project20 - 플라스크 웹서버를 이용한 LED 제어](#project20---플라스크-웹서버를-이용한-led-제어)
 - [project24 - API Key 발급받아 온습도 표시 GUI 프로그램 만들기](#project24---api-key-발급받아-온습도-표시-gui-프로그램-만들기)
 - [project28 - 텔레그램으로 일기예보를 알려주는 알리미 만들기](#project28---텔레그램으로-일기예보를-알려주는-알리미-만들기)
+- [project30 - MQTT 통신으로 제어하는 장치 만들기](#project30---mqtt-통신으로-제어하는-장치-만들기)
 
 ---
 
@@ -452,3 +453,97 @@ asyncio.run(main())
 API Key, 텔레그램 봇 토큰, chat_id를 코드에 입력한 뒤 프로그램을 실행하면 지정된 시간에 서울의 일기예보 메시지가 터미널에 출력되고 텔레그램으로도 전송된다.  
 실습에서는 현재 시간의 1분 뒤를 `ALERT_TIMES`에 추가하여 테스트하였고, 해당 시간이 되었을 때 터미널에 날씨 메시지 로그가 나타나며 텔레그램에서도 동일한 메시지를 정상적으로 수신하는 것을 확인하였다.  
 이를 통해 외부 날씨 API 호출, JSON 데이터 처리, 메시지 문자열 가공, 텔레그램 봇 전송, 시간 조건 기반 자동화를 연결한 AIoT 알림 시스템의 기본 구조를 이해할 수 있었다.
+
+---
+
+## project30 - MQTT 통신으로 제어하는 장치 만들기
+
+### 실험 개요
+MQTT 통신을 이용하여 PC에서 발행한 메시지로 라즈베리파이에 연결된 LED를 제어하고, 라즈베리파이에서도 주기적으로 메시지를 발행하는 양방향 통신 프로그램을 구현하였다.  
+처음에는 PC의 MQTT.fx에서 `led` 토픽으로 `green_on`, `blue_off`와 같은 명령을 발행하고, 라즈베리파이가 이를 구독하여 LED를 제어하는 흐름을 확인하였다. 이후 `threading`을 사용하여 라즈베리파이가 `led` 토픽을 계속 구독하면서 동시에 `hello` 토픽으로 숫자 값을 1초마다 발행하도록 확장하였다.  
+해당 내용은 `project_30` 폴더의 `main30-1.py` 파일 기준으로 정리하였다.
+
+### 실험 목적
+- MQTT의 publish/subscribe 구조를 이해한다.
+- PC에서 발행한 MQTT 메시지를 라즈베리파이가 구독하여 GPIO LED를 제어하는 방법을 학습한다.
+- 라즈베리파이에서 특정 토픽으로 메시지를 발행하고 PC에서 이를 구독하여 확인하는 방법을 익힌다.
+- `threading`을 사용하여 메시지 수신 대기와 주기적 메시지 발행을 동시에 처리하는 구조를 구현한다.
+
+### 사용 부품 및 환경
+- Raspberry Pi
+- 브레드보드 1개
+- 초록 LED 1개
+- 파랑 LED 1개
+- 빨강 LED 1개
+- 330옴 저항 3개
+- 암/수 점퍼 케이블
+- MQTT.fx가 설치된 PC
+- MQTT 브로커 접속 환경
+
+### 사용 기술
+- Python
+- `paho-mqtt`
+- `gpiozero`
+- `threading`
+- MQTT publish/subscribe 통신
+- GPIO 출력 제어
+
+### 주요 코드
+```python
+import paho.mqtt.client as mqtt  # MQTT 통신을 위한 paho-mqtt 라이브러리 불러오기
+import time  # 1초 간격으로 메시지를 발행하기 위한 시간 모듈 불러오기
+from gpiozero import LED  # 라즈베리파이 GPIO 핀에 연결된 LED를 제어하기 위한 클래스 불러오기
+import threading  # 발행과 구독을 동시에 처리하기 위한 스레드 모듈 불러오기
+
+greenLed = LED(16)  # GPIO 16번 핀에 연결된 초록 LED 설정
+blueLed = LED(20)  # GPIO 20번 핀에 연결된 파란 LED 설정
+redLed = LED(21)  # GPIO 21번 핀에 연결된 빨간 LED 설정
+
+def on_message(client, userdata, msg):
+    print(msg.topic+" "+str(msg.payload))
+    message = msg.payload.decode()
+    print(message)
+    if message == "green_on":
+        greenLed.on()
+    elif message == "green_off":
+        greenLed.off()
+    elif message == "blue_on":
+        blueLed.on()
+    elif message == "blue_off":
+        blueLed.off()
+    elif message == "red_on":
+        redLed.on()
+    elif message == "red_off":
+        redLed.off()
+
+client = mqtt.Client()
+client.on_message = on_message
+
+broker_address="192.168.137.230"
+client.connect(broker_address)
+client.subscribe("led",1)
+
+count = 0
+def send_thread():
+    global count
+    while 1:
+        count = count + 1
+        client.publish("hello", str(count))
+        time.sleep(1.0)
+
+task = threading.Thread(target = send_thread)
+task.start()
+
+client.loop_forever()
+```
+
+### 학습 내용
+MQTT는 발행자와 구독자가 직접 연결되는 방식이 아니라, 브로커를 중심으로 토픽을 통해 데이터를 주고받는 publish/subscribe 구조를 사용한다. 이번 실험에서는 PC의 MQTT.fx가 `led` 토픽으로 LED 제어 명령을 발행하고, 라즈베리파이의 Python 프로그램이 해당 토픽을 구독하여 메시지에 따라 GPIO 16번, 20번, 21번 핀의 LED를 제어하였다.  
+수신된 MQTT 메시지는 바이트 형태이므로 `msg.payload.decode()`를 사용하여 문자열로 변환한 뒤, `green_on`, `green_off`, `blue_on`, `blue_off`, `red_on`, `red_off` 명령에 따라 각각의 LED를 켜거나 끄도록 구성하였다. 이를 통해 MQTT 메시지가 실제 하드웨어 출력 제어로 이어지는 흐름을 확인하였다.  
+또한 `client.loop_forever()`는 MQTT 메시지를 계속 수신하기 위한 무한 대기 루프이므로, 이 코드가 실행되면 그 아래의 일반 코드는 순차적으로 실행되기 어렵다. 따라서 `main30-1.py`에서는 `send_thread()` 함수를 별도의 스레드로 실행하여 `hello` 토픽으로 숫자 값을 1초마다 발행하고, 메인 흐름에서는 `led` 토픽 수신을 계속 유지하도록 구성하였다.  
+이를 통해 라즈베리파이가 MQTT 메시지를 받는 구독자 역할과 메시지를 보내는 발행자 역할을 동시에 수행할 수 있으며, `threading`을 사용하면 하나의 Python 프로그램 안에서 양방향 통신 흐름을 구현할 수 있음을 학습하였다.
+
+### 실행 결과
+라즈베리파이에서 `main30-1.py`를 실행한 뒤 PC의 MQTT.fx Publish 메뉴에서 `led` 토픽으로 `green_on`, `green_off`, `blue_on`, `blue_off`, `red_on`, `red_off` 명령을 발행하면 각 색상의 LED가 명령에 맞게 켜지고 꺼지도록 구현하였다.  
+동시에 MQTT.fx의 Subscribe 메뉴에서 `hello` 토픽을 구독하면 라즈베리파이가 1초마다 발행하는 숫자 값이 순서대로 수신되는 것을 확인하였다.  
+이를 통해 MQTT 기반 LED 제어와 `threading`을 이용한 주기적 메시지 발행을 함께 수행하는 양방향 AIoT 통신 구조를 구현할 수 있었다.
