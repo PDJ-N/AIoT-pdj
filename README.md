@@ -13,6 +13,7 @@
 - [project24 - API Key 발급받아 온습도 표시 GUI 프로그램 만들기](#project24---api-key-발급받아-온습도-표시-gui-프로그램-만들기)
 - [project28 - 텔레그램으로 일기예보를 알려주는 알리미 만들기](#project28---텔레그램으로-일기예보를-알려주는-알리미-만들기)
 - [project30 - MQTT 통신으로 제어하는 장치 만들기](#project30---mqtt-통신으로-제어하는-장치-만들기)
+- [project32 - AI 음성 인식 날씨 안내 장치 만들기](#project32---ai-음성-인식-날씨-안내-장치-만들기)
 
 ---
 
@@ -547,3 +548,96 @@ MQTT는 발행자와 구독자가 직접 연결되는 방식이 아니라, 브�
 라즈베리파이에서 `main30-1.py`를 실행한 뒤 PC의 MQTT.fx Publish 메뉴에서 `led` 토픽으로 `green_on`, `green_off`, `blue_on`, `blue_off`, `red_on`, `red_off` 명령을 발행하면 각 색상의 LED가 명령에 맞게 켜지고 꺼지도록 구현하였다.  
 동시에 MQTT.fx의 Subscribe 메뉴에서 `hello` 토픽을 구독하면 라즈베리파이가 1초마다 발행하는 숫자 값이 순서대로 수신되는 것을 확인하였다.  
 이를 통해 MQTT 기반 LED 제어와 `threading`을 이용한 주기적 메시지 발행을 함께 수행하는 양방향 AIoT 통신 구조를 구현할 수 있었다.
+
+---
+
+## project32 - AI 음성 인식 날씨 안내 장치 만들기
+
+### 실험 개요
+라즈베리파이 5에서 마이크로 입력받은 음성을 Python으로 인식하고, 사용자가 "날씨"라는 단어를 말하면 OpenWeatherMap API를 통해 서울의 현재 기온과 습도를 조회한 뒤 `espeak`로 음성 안내하는 프로그램을 구현하였다.  
+처음에는 날씨 API와 TTS 출력을 연결하여 주기적으로 날씨를 읽어 주는 구조를 확인하고, 이후 Google Speech Recognition을 이용한 한국어 음성 인식 결과와 날씨 안내 기능을 결합하였다.  
+해당 내용은 `project_32` 폴더의 `main32.py`, `main32-1.py`, `main32-2.py` 파일 기준으로 정리하였다.
+
+### 실험 목적
+- 마이크 입력을 Python에서 받아오는 방법을 학습한다.
+- Google Speech Recognition을 이용하여 한국어 음성을 텍스트로 변환하는 과정을 이해한다.
+- 인식된 문장에서 특정 키워드를 찾아 조건문으로 처리하는 방법을 익힌다.
+- OpenWeatherMap API 응답에서 현재 기온과 습도 값을 추출한다.
+- `espeak`를 이용하여 텍스트 형태의 날씨 정보를 음성으로 출력한다.
+
+### 사용 부품 및 환경
+- Raspberry Pi 5
+- 마이크 또는 USB 오디오 입력 장치
+- 스피커 또는 오디오 출력 장치
+- 인터넷 연결 환경
+- OpenWeatherMap 계정 및 API Key
+- Python 3.12.10 실행 환경
+
+### 사용 기술
+- Python
+- `speech_recognition`
+- PyAudio
+- `requests`
+- OpenWeatherMap Current Weather API
+- Google Speech Recognition
+- `espeak` TTS
+
+### 파일별 역할
+- `main32.py`: 마이크 음성을 입력받아 Google Speech Recognition으로 한국어 텍스트를 인식하고, "날씨" 키워드 감지를 확인한다.
+- `main32-1.py`: OpenWeatherMap API에서 서울의 현재 기온과 습도를 가져와 `espeak`로 반복 안내한다.
+- `main32-2.py`: 음성 입력, STT 변환, 키워드 감지, 날씨 API 호출, TTS 출력을 하나의 흐름으로 통합한다.
+
+### 주요 코드
+```python
+import speech_recognition as sr
+import requests
+import os
+
+API_KEY = "Enter your API key here"
+url = f"https://api.openweathermap.org/data/2.5/weather?q=Seoul&appid={API_KEY}&units=metric"
+
+def speak(option, msg):
+    os.system("espeak {} '{}'".format(option, msg))
+
+try:
+    while True:
+        r = sr.Recognizer()
+
+        with sr.Microphone() as source:
+            print("Say something!")
+            audio = r.listen(source)
+
+        try:
+            text = r.recognize_google(audio, language='ko-KR')
+            print("You said: " + text)
+
+            if "날씨" in text:
+                print("날씨 음성을 인식하였습니다.")
+                response = requests.get(url)
+                data = response.json()
+
+                temp = data["main"]["temp"]
+                humi = data["main"]["humidity"]
+
+                msg = '    기온은 ' + str(int(temp)) + '도 습도는 ' + str(humi) + '퍼센트 입니다'
+                option = '-s 180 -p 50 -a 200 -v ko+f5'
+                speak(option, msg)
+
+        except sr.UnknownValueError:
+            print("Google Speech Recognition could not understand audio")
+        except sr.RequestError as e:
+            print("Could not request results from Google Speech Recognition service; {0}".format(e))
+
+except KeyboardInterrupt:
+    pass
+```
+
+### 학습 내용
+`speech_recognition` 라이브러리의 `Recognizer()`와 `Microphone()`을 사용하면 마이크로 입력된 음성을 Python 프로그램에서 받아올 수 있다. 이후 `recognize_google(audio, language='ko-KR')`를 사용하여 녹음된 음성을 한국어 텍스트로 변환하였다. 이 과정은 Google Speech Recognition 서비스를 사용하므로 인터넷 연결이 필요하다.  
+인식된 문장에서 특정 단어가 포함되어 있는지 확인할 때는 `if "날씨" in text:`와 같이 작성해야 한다. 반대로 `if text in "날씨":`처럼 작성하면 사용자가 말한 전체 문장이 `"날씨"`라는 짧은 문자열 안에 포함되는지를 검사하게 되므로, `"오늘 날씨 알려줘"`와 같은 문장은 올바르게 감지되지 않는다.  
+날씨 정보는 OpenWeatherMap Current Weather API를 이용하여 가져왔고, 응답으로 받은 JSON 데이터에서 `data["main"]["temp"]`와 `data["main"]["humidity"]` 값을 추출하였다. 추출한 기온과 습도는 문자열로 조합한 뒤 `espeak` 명령어에 전달하여 음성으로 출력하였다. 이를 통해 마이크 입력, STT, 키워드 판단, 웹 API 호출, TTS 출력이 하나의 AIoT 음성 서비스 흐름으로 연결되는 구조를 이해할 수 있었다.
+
+### 실행 결과
+`main32-1.py`를 실행하면 OpenWeatherMap API에서 가져온 서울의 현재 기온과 습도가 터미널에 출력되고, 같은 내용이 `espeak`를 통해 음성으로 안내된다.  
+`main32-2.py`를 실행한 뒤 마이크에 "날씨"가 포함된 문장을 말하면 Google Speech Recognition으로 음성이 텍스트로 변환되고, 키워드가 감지되었을 때 서울의 현재 기온과 습도를 조회하여 음성으로 출력한다.  
+이를 통해 사용자의 음성 명령을 기반으로 외부 날씨 데이터를 조회하고, 다시 음성으로 안내하는 기초적인 AI 음성 날씨 안내 장치를 구현할 수 있음을 확인하였다.
