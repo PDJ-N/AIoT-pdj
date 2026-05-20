@@ -14,6 +14,7 @@
 - [project28 - 텔레그램으로 일기예보를 알려주는 알리미 만들기](#project28---텔레그램으로-일기예보를-알려주는-알리미-만들기)
 - [project30 - MQTT 통신으로 제어하는 장치 만들기](#project30---mqtt-통신으로-제어하는-장치-만들기)
 - [project32 - AI 음성 인식 날씨 안내 장치 만들기](#project32---ai-음성-인식-날씨-안내-장치-만들기)
+- [project34 - OpenCV 졸음방지 디바이스 만들기](#project34---opencv-졸음방지-디바이스-만들기)
 
 ---
 
@@ -641,3 +642,102 @@ except KeyboardInterrupt:
 `main32-1.py`를 실행하면 OpenWeatherMap API에서 가져온 서울의 현재 기온과 습도가 터미널에 출력되고, 같은 내용이 `espeak`를 통해 음성으로 안내된다.  
 `main32-2.py`를 실행한 뒤 마이크에 "날씨"가 포함된 문장을 말하면 Google Speech Recognition으로 음성이 텍스트로 변환되고, 키워드가 감지되었을 때 서울의 현재 기온과 습도를 조회하여 음성으로 출력한다.  
 이를 통해 사용자의 음성 명령을 기반으로 외부 날씨 데이터를 조회하고, 다시 음성으로 안내하는 기초적인 AI 음성 날씨 안내 장치를 구현할 수 있음을 확인하였다.
+
+---
+
+## project34 - OpenCV 졸음방지 디바이스 만들기
+
+### 실험 개요
+OpenCV를 이용하여 웹캠 영상에서 얼굴과 눈을 실시간으로 탐지하고, 눈이 감긴 상태로 판단되면 능동부저로 경보음을 출력하는 졸음방지 디바이스를 구현하였다.  
+`main34.py`에서는 얼굴과 눈이 탐지된 위치를 사각형으로 표시하는 기본 영상 처리 흐름을 확인하고, `main34-1.py`에서는 눈 탐지 결과에 따라 GPIO 16번 핀에 연결된 부저를 제어하도록 확장하였다.  
+해당 내용은 `project_34` 폴더의 `main34.py`, `main34-1.py` 파일 기준으로 정리하였다.
+
+### 실험 목적
+- OpenCV의 Haar Cascade 분류기를 이용하여 얼굴과 눈을 탐지하는 방법을 학습한다.
+- 웹캠에서 입력된 영상을 프레임 단위로 읽고 흑백 영상으로 변환하는 과정을 이해한다.
+- 얼굴 영역 내부에서 눈을 탐지하여 눈 개수에 따라 상태를 판단하는 구조를 구현한다.
+- `gpiozero`의 `Buzzer`를 사용하여 영상 인식 결과와 GPIO 출력 장치를 연동한다.
+- 사용자가 `q` 키를 입력하면 프로그램을 종료하고, 종료 시 부저를 안전하게 끄는 흐름을 확인한다.
+
+### 사용 부품 및 환경
+- Raspberry Pi
+- 웹캠 1개
+- 능동부저 1개
+- 브레드보드 1개
+- 암/수 점퍼 케이블 2개
+- OpenCV와 `gpiozero`가 설치된 Python 실행 환경
+
+### 사용 기술
+- Python
+- OpenCV
+- `cv2`
+- Haar Cascade 얼굴/눈 탐지
+- `gpiozero`
+- GPIO 출력 제어
+
+### 파일별 역할
+- `main34.py`: 웹캠 영상에서 얼굴과 눈을 탐지하고, 탐지된 영역을 각각 파란색과 초록색 사각형으로 표시한다.
+- `main34-1.py`: 눈 탐지 개수를 기준으로 졸음 상태를 판단하고, 눈이 1개 이하로 감지되면 능동부저를 울린다.
+
+### 주요 코드
+```python
+import cv2
+from gpiozero import Buzzer
+
+buzzerPin = Buzzer(16)
+
+def main():
+    camera = cv2.VideoCapture(-1)
+    camera.set(3,640)
+    camera.set(4,480)
+
+    face_xml = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    eye_xml = cv2.data.haarcascades + 'haarcascade_eye.xml'
+    face_cascade = cv2.CascadeClassifier(face_xml)
+    eye_cascade = cv2.CascadeClassifier(eye_xml)
+
+    while( camera.isOpened() ):
+        _, image = camera.read()
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        faces = face_cascade.detectMultiScale(gray,scaleFactor=1.1,minNeighbors=5,minSize=(100,100),flags=cv2.CASCADE_SCALE_IMAGE)
+        print("faces detected Number: " + str(len(faces)))
+
+        if len(faces):
+            for (x,y,w,h) in faces:
+                cv2.rectangle(image,(x,y),(x+w,y+h),(255,0,0),2)
+
+                face_gray = gray[y:y+h, x:x+w]
+                face_color = image[y:y+h, x:x+w]
+
+                eyes = eye_cascade.detectMultiScale(face_gray,scaleFactor=1.1,minNeighbors=5)
+
+                if len(eyes) <= 1:
+                    buzzerPin.on()
+                else:
+                    buzzerPin.off()
+
+                for (ex,ey,ew,eh) in eyes:
+                    cv2.rectangle(face_color, (ex, ey), (ex+ew, ey+eh), (0,255,0), 2)
+
+        cv2.imshow('result', image)
+
+        if cv2.waitKey(1) == ord('q'):
+            break
+
+    cv2.destroyAllWindows()
+    buzzerPin.off()
+
+if __name__ == '__main__':
+    main()
+```
+
+### 학습 내용
+OpenCV의 `VideoCapture(-1)`를 사용하면 연결된 웹캠을 자동으로 열 수 있으며, `camera.read()`를 통해 현재 화면을 프레임 단위로 받아올 수 있다. 얼굴과 눈 탐지에는 OpenCV에 내장된 Haar Cascade XML 모델을 사용하였고, 컬러 영상은 `cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)`를 통해 흑백 영상으로 변환한 뒤 탐지를 수행하였다. 흑백 영상은 컬러 영상보다 연산량이 적어 실시간 탐지에 적합하다.  
+먼저 `main34.py`에서는 전체 영상에서 얼굴을 탐지하고, 탐지된 얼굴 영역 내부에서 다시 눈을 찾도록 구성하였다. 얼굴 영역은 파란색 사각형으로 표시하고, 눈 영역은 초록색 사각형으로 표시하여 탐지 결과를 GUI 창에서 직접 확인할 수 있도록 하였다.  
+이후 `main34-1.py`에서는 탐지된 눈의 개수를 조건문으로 판단하였다. 눈이 2개 이상 감지되면 정상 상태로 보고 부저를 끄며, 눈이 1개 이하로 감지되면 눈을 감은 상태로 판단하여 능동부저를 켜도록 구성하였다. 이를 통해 영상 처리 결과가 실제 GPIO 출력 제어로 이어지는 AIoT 응용 흐름을 학습하였다.
+
+### 실행 결과
+`main34.py`를 실행하면 웹캠 영상이 GUI 창에 표시되고, 얼굴에는 파란색 사각형, 눈에는 초록색 사각형이 표시된다. 터미널에는 현재 프레임에서 탐지된 얼굴 수가 `"faces detected Number"` 형식으로 출력된다.  
+`main34-1.py`를 실행한 뒤 사용자가 눈을 감으면 탐지된 눈 개수가 1개 이하로 줄어들면서 GPIO 16번 핀에 연결된 능동부저가 울리도록 구현하였다. 다시 눈이 2개 이상 감지되면 부저가 꺼지고, `q` 키를 누르면 OpenCV 창이 닫히며 프로그램이 종료된다.  
+이를 통해 OpenCV 기반 얼굴/눈 인식과 라즈베리파이 GPIO 부저 제어를 결합한 기초적인 졸음방지 알림 디바이스를 구현할 수 있음을 확인하였다.
