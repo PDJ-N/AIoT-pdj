@@ -816,6 +816,13 @@ aiot_ai_room_security/
 | `download_models.py` | OpenCV DNN 모델 파일을 다운로드하는 대체 스크립트이다. |
 | `requirements.txt` | 필요한 Python 라이브러리 목록이다. |
 
+### 기획 및 데이터 구조 설명서
+침입 감지 프로그램의 기획, 데이터 구조도, 모듈 구조, CSV 로그 구조, 보고서용 설명 문장은 아래 HTML 문서에 정리하였다.
+
+```text
+aiot_ai_room_security/intrusion_project_design.html
+```
+
 ### 동작 흐름
 1. 프로그램이 시작되면 `"AI 침입 감지 시스템 대기 중..."` 메시지를 출력한다.
 2. `sensor.read_motion()`이 PIR 센서 값을 반복 확인한다.
