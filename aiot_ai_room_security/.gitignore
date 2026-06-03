@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+captures/*.jpg
+captures/*.jpeg
+captures/*.png
+models/*.pb
+models/*.pbtxt
+models/*.tar.gz
+!models/.gitkeep

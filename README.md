@@ -15,6 +15,7 @@
 - [project30 - MQTT 통신으로 제어하는 장치 만들기](#project30---mqtt-통신으로-제어하는-장치-만들기)
 - [project32 - AI 음성 인식 날씨 안내 장치 만들기](#project32---ai-음성-인식-날씨-안내-장치-만들기)
 - [project34 - OpenCV 졸음방지 디바이스 만들기](#project34---opencv-졸음방지-디바이스-만들기)
+- [aiot_ai_room_security - PIR 센서와 OpenCV AI를 활용한 방 침입 감지 및 텔레그램 알림 시스템](#aiot_ai_room_security---pir-센서와-opencv-ai를-활용한-방-침입-감지-및-텔레그램-알림-시스템)
 
 ---
 
@@ -741,3 +742,172 @@ OpenCV의 `VideoCapture(-1)`를 사용하면 연결된 웹캠을 자동으로 �
 `main34.py`를 실행하면 웹캠 영상이 GUI 창에 표시되고, 얼굴에는 파란색 사각형, 눈에는 초록색 사각형이 표시된다. 터미널에는 현재 프레임에서 탐지된 얼굴 수가 `"faces detected Number"` 형식으로 출력된다.  
 `main34-1.py`를 실행한 뒤 사용자가 눈을 감으면 탐지된 눈 개수가 1개 이하로 줄어들면서 GPIO 16번 핀에 연결된 능동부저가 울리도록 구현하였다. 다시 눈이 2개 이상 감지되면 부저가 꺼지고, `q` 키를 누르면 OpenCV 창이 닫히며 프로그램이 종료된다.  
 이를 통해 OpenCV 기반 얼굴/눈 인식과 라즈베리파이 GPIO 부저 제어를 결합한 기초적인 졸음방지 알림 디바이스를 구현할 수 있음을 확인하였다.
+
+---
+
+## aiot_ai_room_security - PIR 센서와 OpenCV AI를 활용한 방 침입 감지 및 텔레그램 알림 시스템
+
+### 프로젝트 개요
+기말 프로젝트로 구현한 Raspberry Pi 기반 AIoT 방 침입 감지 시스템이다.  
+PIR 인체감지 센서가 방 안의 움직임을 감지하면 USB 웹캠 프레임을 가져오고, OpenCV DNN MobileNet SSD 모델로 화면 안에 `person` 객체가 있는지 확인한다. 사람이 감지되면 능동 부저를 울리고, 감지 이미지를 저장하며, 텔레그램 메시지와 사진을 전송하고 CSV 로그를 기록한다.  
+회로 구성을 단순화하기 위해 LED는 사용하지 않고 PIR 센서, USB 웹캠, 능동 부저, 텔레그램 알림을 중심으로 구성하였다.
+
+### 프로젝트 목적
+- PIR 센서와 OpenCV AI 객체검출을 결합하여 단순 움직임 감지보다 신뢰도 높은 침입 감지 시스템을 만든다.
+- Raspberry Pi GPIO 입력, GPIO 출력, USB 웹캠 영상 처리, Telegram Bot API, CSV 로그 기록을 하나의 흐름으로 통합한다.
+- 실제 라즈베리파이에서 실행 가능한 Python 코드로 작성하고, 하드웨어가 없을 때는 `MOCK_MODE`로 흐름을 테스트할 수 있게 한다.
+- 프로그램 종료 시 부저와 카메라 자원을 안전하게 정리한다.
+
+### 사용 부품 및 회로
+| 부품 | 연결 |
+| --- | --- |
+| PIR 센서 `S` 또는 `Signal` | `GPIO 16`, 물리 36번 |
+| PIR 센서 `VCC` | `3.3V`, 물리 1번 |
+| PIR 센서 `GND` | `GND` |
+| 3핀 능동 부저 `S` | `GPIO 18`, 물리 12번 |
+| 3핀 능동 부저 `+` | `3.3V` |
+| 3핀 능동 부저 `-` | `GND` |
+| USB 웹캠 | Raspberry Pi USB 포트 |
+
+2핀 능동 부저를 사용하는 경우에는 부저 `+`를 `GPIO 18`, 부저 `-`를 `GND`에 연결한다.  
+사용자가 보유한 `S`, `+`, `-` 표시 3핀 부저 모듈은 `S`를 GPIO 제어선으로 사용한다.
+
+### 사용 기술
+- Python
+- `gpiozero`
+- OpenCV DNN
+- MobileNet SSD `person` 객체검출
+- USB 웹캠 영상 처리
+- Telegram Bot API
+- CSV 로그 기록
+- 환경변수 기반 설정 관리
+
+### 폴더 구조
+```text
+aiot_ai_room_security/
+├── main.py
+├── config.py
+├── sensor.py
+├── buzzer.py
+├── vision_ai.py
+├── telegram_notifier.py
+├── logger.py
+├── download_models.py
+├── download_models.sh
+├── requirements.txt
+├── captures/
+│   └── .gitkeep
+├── logs/
+│   └── event_log.csv
+└── models/
+    └── .gitkeep
+```
+
+### 파일별 역할
+| 파일 | 역할 |
+| --- | --- |
+| `main.py` | 전체 프로그램 진입점. PIR 감지, AI 확인, cooldown, 부저, 텔레그램, 로그 기록 흐름을 제어한다. |
+| `config.py` | GPIO 핀, 모델 파일 경로, confidence 기준값, 텔레그램 정보, 카메라 표시 옵션, MOCK 설정을 관리한다. |
+| `sensor.py` | PIR 센서 값을 읽어 움직임 감지 여부를 반환한다. |
+| `buzzer.py` | 능동 부저 ON/OFF와 지정 시간 beep 동작을 담당한다. |
+| `vision_ai.py` | USB 웹캠 프레임을 읽고 OpenCV DNN MobileNet SSD로 `person` 객체를 탐지한다. 카메라 미리보기와 이미지 저장도 담당한다. |
+| `telegram_notifier.py` | Telegram Bot API로 텍스트 메시지와 사진을 전송한다. |
+| `logger.py` | `logs/event_log.csv`에 침입 이벤트를 기록한다. |
+| `download_models.py` | OpenCV DNN 모델 파일을 다운로드하는 대체 스크립트이다. |
+| `requirements.txt` | 필요한 Python 라이브러리 목록이다. |
+
+### 동작 흐름
+1. 프로그램이 시작되면 `"AI 침입 감지 시스템 대기 중..."` 메시지를 출력한다.
+2. `sensor.read_motion()`이 PIR 센서 값을 반복 확인한다.
+3. PIR 센서 값이 `1`이면 움직임 감지로 판단한다.
+4. `vision_ai.detect_person()`이 웹캠 프레임을 읽고 AI 모델로 `person` 객체를 탐지한다.
+5. confidence가 기준값 이상이면 침입 이벤트로 판단한다.
+6. cooldown 시간이 지나지 않았다면 중복 알림을 생략한다.
+7. 침입 이벤트이면 감지 이미지를 `captures/` 폴더에 저장한다.
+8. 능동 부저를 지정 시간 동안 울린다.
+9. 텔레그램 메시지와 사진을 전송한다.
+10. `logs/event_log.csv`에 시간, 이벤트 종류, 메시지, confidence, 이미지 경로를 저장한다.
+11. `Ctrl+C` 또는 OpenCV 창의 `q` 키 입력 시 카메라와 부저를 정리하고 종료한다.
+
+### OpenCV AI 모델 준비
+수업자료에서 사용한 방식은 아래와 같다.
+
+```bash
+cd ~/aiot-github/aiot_ai_room_security
+git clone https://github.com/moonchuljang/OpencvDnn.git /tmp/OpencvDnn
+mkdir -p models
+cp /tmp/OpencvDnn/models/frozen_inference_graph.pb models/
+cp /tmp/OpencvDnn/models/ssd_mobilenet_v2_coco_2018_03_29.pbtxt models/
+ls -lh models
+```
+
+정상이라면 아래 두 파일이 보여야 한다.
+
+```text
+frozen_inference_graph.pb
+ssd_mobilenet_v2_coco_2018_03_29.pbtxt
+```
+
+수업자료 clone 방식이 실패하면 대체 스크립트를 사용할 수 있다.
+
+```bash
+cd ~/aiot-github/aiot_ai_room_security
+python3 download_models.py
+ls -lh models
+```
+
+### 설치 및 실행 방법
+```bash
+cd ~/aiot-github/aiot_ai_room_security
+
+python3 -m venv .venv --system-site-packages
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+하드웨어 없이 mock 테스트:
+
+```bash
+export AIOT_MOCK_MODE=1
+export AIOT_MOCK_MOTION=1
+export AIOT_MOCK_PERSON_DETECTED=1
+export AIOT_MAX_LOOP_COUNT=1
+
+python main.py
+```
+
+실제 라즈베리파이 실행:
+
+```bash
+export AIOT_MOCK_MODE=0
+export AIOT_CAMERA_INDEX=0
+export AIOT_SHOW_CAMERA_WINDOW=1
+export TELEGRAM_BOT_TOKEN="BotFather에서_받은_token"
+export TELEGRAM_CHAT_ID="확인한_chat_id"
+
+python main.py
+```
+
+카메라 화면을 표시하지 않으려면 `AIOT_SHOW_CAMERA_WINDOW=0`으로 실행한다. SSH 터미널만 사용하는 환경에서는 OpenCV 창이 표시되지 않을 수 있다.
+
+### 로그 데이터 구조
+`logs/event_log.csv`는 다음 형식으로 저장된다.
+
+```text
+timestamp,event_type,message,confidence,image_path
+```
+
+예시:
+
+```text
+2026-06-03T15:20:10,INTRUSION,방에 사람이 감지되었습니다.,0.9521,captures/intrusion_20260603_152010_123456.jpg
+```
+
+### 학습 내용
+이번 프로젝트에서는 PIR 센서의 디지털 입력을 AI 영상 분석의 트리거로 사용하였다. 움직임이 감지된 경우에만 OpenCV DNN 모델을 실행하므로, 매 프레임 AI 분석을 수행하는 방식보다 라즈베리파이의 부담을 줄일 수 있다.  
+OpenCV DNN MobileNet SSD 모델은 웹캠 프레임에서 `person` 객체를 찾고 confidence 값을 반환한다. 이 값이 기준 이상일 때만 침입 이벤트로 처리하여 단순 움직임 감지의 오탐 가능성을 줄였다.  
+또한 `gpiozero`를 이용한 부저 출력, Telegram Bot API를 이용한 원격 알림, CSV 파일을 이용한 이벤트 기록을 하나의 프로그램 흐름으로 통합하였다. 이를 통해 센서 입력, AI 판단, 물리 출력, 네트워크 알림, 데이터 저장이 결합된 AIoT 시스템 구조를 학습하였다.
+
+### 실행 결과 예상
+방 안에서 사람이 움직이면 PIR 센서가 움직임을 감지하고, 웹캠 프레임에서 AI가 `person` 객체를 탐지한다. 침입으로 판단되면 부저가 울리고, 감지 이미지가 `captures/` 폴더에 저장된다. 텔레그램 설정이 되어 있으면 사용자에게 `"방에 사람이 감지되었습니다."` 메시지와 사진이 전송된다. 동시에 `logs/event_log.csv`에는 감지 시간, 이벤트 종류, confidence, 이미지 경로가 기록된다.
