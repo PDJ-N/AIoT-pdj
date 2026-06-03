@@ -969,7 +969,142 @@
     </section>
 
     <section class="card wide">
-      <h2>14. 보고서용 설명 문장</h2>
+      <h2>14. 소스코드를 받았을 때 사용 방법</h2>
+      <p>
+        이 HTML 문서와 소스코드를 받은 사람이 실제 라즈베리파이에서 실행하려면 아래 순서대로 진행한다.
+        회로 연결은 PIR 센서 <code>GPIO16</code>, 부저 <code>GPIO18</code>, USB 웹캠 연결이 완료되었다고 가정한다.
+      </p>
+
+      <h3>14.1 GitHub에서 전체 저장소를 받은 경우</h3>
+      <pre><code>cd ~
+git clone https://github.com/PDJ-N/AIoT-pdj.git
+cd AIoT-pdj/aiot_ai_room_security</code></pre>
+      <p>이미 clone한 적이 있다면 새로 받지 말고 업데이트만 한다.</p>
+      <pre><code>cd ~/AIoT-pdj
+git pull
+cd aiot_ai_room_security</code></pre>
+
+      <h3>14.2 소스코드 폴더만 복사받은 경우</h3>
+      <p>
+        <code>aiot_ai_room_security</code> 폴더만 따로 받았다면 해당 폴더 안으로 이동한다.
+        중요한 기준은 <code>main.py</code>, <code>config.py</code>, <code>vision_ai.py</code>가 보이는 위치에서 명령을 실행하는 것이다.
+      </p>
+      <pre><code>cd /소스코드를_복사한_경로/aiot_ai_room_security
+ls</code></pre>
+
+      <h3>14.3 Python 실행 환경 설치</h3>
+      <pre><code>sudo apt update
+sudo apt install -y python3-venv python3-pip git curl
+
+python3 -m venv .venv --system-site-packages
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt</code></pre>
+      <div class="note">
+        다음부터 프로그램을 실행할 때는 프로젝트 폴더에서 <code>source .venv/bin/activate</code>를 먼저 실행한다.
+      </div>
+
+      <h3>14.4 OpenCV DNN 모델 파일 준비</h3>
+      <p>수업자료에서 사용한 기본 방식은 아래 명령이다.</p>
+      <pre><code>git clone https://github.com/moonchuljang/OpencvDnn.git /tmp/OpencvDnn
+mkdir -p models
+cp /tmp/OpencvDnn/models/frozen_inference_graph.pb models/
+cp /tmp/OpencvDnn/models/ssd_mobilenet_v2_coco_2018_03_29.pbtxt models/
+ls -lh models</code></pre>
+      <p>아래 두 파일이 보여야 AI 사람 탐지가 가능하다.</p>
+      <pre><code>frozen_inference_graph.pb
+ssd_mobilenet_v2_coco_2018_03_29.pbtxt</code></pre>
+      <p><code>/tmp/OpencvDnn</code>이 이미 있어서 clone이 실패하면 아래처럼 지운 뒤 다시 실행한다.</p>
+      <pre><code>rm -rf /tmp/OpencvDnn
+git clone https://github.com/moonchuljang/OpencvDnn.git /tmp/OpencvDnn</code></pre>
+      <p>수업자료 clone 방식이 안 되면 프로젝트에 포함된 대체 스크립트를 실행한다.</p>
+      <pre><code>python3 download_models.py
+ls -lh models</code></pre>
+
+      <h3>14.5 하드웨어 없이 먼저 테스트</h3>
+      <p>라즈베리파이 회로 없이도 코드 흐름이 정상인지 확인할 수 있다.</p>
+      <pre><code>source .venv/bin/activate
+
+export AIOT_MOCK_MODE=1
+export AIOT_MOCK_MOTION=1
+export AIOT_MOCK_PERSON_DETECTED=1
+export AIOT_MAX_LOOP_COUNT=1
+export AIOT_BUZZER_BEEP_SECONDS=0.1
+
+python main.py</code></pre>
+
+      <h3>14.6 실제 라즈베리파이에서 실행</h3>
+      <p>부저, PIR 센서, USB 웹캠을 연결한 뒤 실제 모드로 실행한다.</p>
+      <pre><code>source .venv/bin/activate
+
+export AIOT_MOCK_MODE=0
+export AIOT_CAMERA_INDEX=0
+export AIOT_SHOW_CAMERA_WINDOW=1
+
+python main.py</code></pre>
+      <div class="ok">
+        라즈베리파이 Desktop 화면에서 실행하면 OpenCV 창에 카메라 프레임이 표시된다.
+        PIR 감지 후 사람이 탐지되면 <code>person confidence</code> 박스가 화면에 표시된다.
+        창에서 <code>q</code> 키를 누르거나 터미널에서 <code>Ctrl+C</code>를 누르면 종료된다.
+      </div>
+
+      <h3>14.7 텔레그램 알림까지 포함해서 실행</h3>
+      <p>
+        텔레그램을 사용하려면 BotFather에서 받은 bot token과 chat_id를 환경변수로 설정한다.
+        token과 chat_id가 비어 있으면 텔레그램 전송만 건너뛰고 부저, 이미지 저장, CSV 로그는 계속 동작한다.
+      </p>
+      <pre><code>export TELEGRAM_BOT_TOKEN="BotFather에서_받은_token"
+export TELEGRAM_CHAT_ID="확인한_chat_id"
+
+export AIOT_MOCK_MODE=0
+export AIOT_CAMERA_INDEX=0
+export AIOT_SHOW_CAMERA_WINDOW=1
+
+python main.py</code></pre>
+
+      <h3>14.8 실행 후 결과 확인</h3>
+      <pre><code>ls -lh captures
+cat logs/event_log.csv
+ls -lh models</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>확인 항목</th>
+            <th>정상 상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>captures/</code></td>
+            <td>침입 감지 시 <code>intrusion_*.jpg</code> 이미지가 저장된다.</td>
+          </tr>
+          <tr>
+            <td><code>logs/event_log.csv</code></td>
+            <td>timestamp, event_type, message, confidence, image_path가 기록된다.</td>
+          </tr>
+          <tr>
+            <td><code>models/</code></td>
+            <td>MobileNet SSD 모델 파일 2개가 들어 있어야 한다.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>14.9 오류가 날 때 확인할 명령</h3>
+      <pre><code>pwd
+python --version
+ls -lh
+ls -lh models
+ls /dev/video*
+echo $DISPLAY
+cat logs/event_log.csv</code></pre>
+      <div class="danger">
+        <code>echo $DISPLAY</code> 결과가 비어 있으면 OpenCV 창을 띄울 그래픽 화면이 없는 상태일 수 있다.
+        SSH만 사용하는 환경에서는 <code>AIOT_SHOW_CAMERA_WINDOW=0</code>으로 실행하거나 라즈베리파이 Desktop 터미널에서 실행한다.
+      </div>
+    </section>
+
+    <section class="card wide">
+      <h2>15. 보고서용 설명 문장</h2>
       <p>
         본 프로젝트는 PIR 인체감지 센서와 OpenCV DNN MobileNet SSD 객체검출을 결합한
         Raspberry Pi 기반 AIoT 방 침입 감지 시스템이다. PIR 센서는 사람이나 물체의 움직임을 빠르게
@@ -985,7 +1120,7 @@
     </section>
 
     <section class="card wide">
-      <h2>15. 장점과 한계</h2>
+      <h2>16. 장점과 한계</h2>
       <table>
         <thead>
           <tr>
